@@ -70,6 +70,32 @@ impl RootDirectory {
         self.mounts.iter().any(|mp| mp.path == path)
     }
 
+    /// Find which filesystem a path belongs to and extract the rest path.
+    /// Returns (filesystem_index, rest_path).
+    fn find_fs_for_path<'a>(&self, path: &'a str) -> (usize, &'a str) {
+        let path = if let Some(rest) = path.strip_prefix("./") {
+            rest
+        } else {
+            path
+        };
+
+        let mut idx = usize::MAX;
+        let mut max_len = 0;
+
+        for (i, mp) in self.mounts.iter().enumerate() {
+            if path.starts_with(&mp.path[1..]) && mp.path.len() - 1 > max_len {
+                max_len = mp.path.len() - 1;
+                idx = i;
+            }
+        }
+
+        if max_len == 0 {
+            (usize::MAX, path)
+        } else {
+            (idx, &path[max_len..])
+        }
+    }
+
     fn lookup_mounted_fs<F, T>(&self, path: &str, f: F) -> AxResult<T>
     where
         F: FnOnce(Arc<dyn VfsOps>, &str) -> AxResult<T>,
@@ -133,13 +159,25 @@ impl VfsNodeOps for RootDirectory {
     }
 
     fn rename(&self, src_path: &str, dst_path: &str) -> VfsResult {
-        self.lookup_mounted_fs(src_path, |fs, rest_path| {
-            if rest_path.is_empty() {
-                ax_err!(PermissionDenied) // cannot rename mount points
-            } else {
-                fs.root_dir().rename(rest_path, dst_path)
-            }
-        })
+        let src_path_trimmed = src_path.trim_matches('/');
+        let dst_path_trimmed = dst_path.trim_matches('/');
+
+        let (src_fs_idx, src_rest) = self.find_fs_for_path(src_path_trimmed);
+        let (dst_fs_idx, dst_rest) = self.find_fs_for_path(dst_path_trimmed);
+
+        if src_fs_idx != dst_fs_idx {
+            return ax_err!(Unsupported);
+        }
+
+        if src_rest.is_empty() || dst_rest.is_empty() {
+            return ax_err!(PermissionDenied);
+        }
+
+        if src_fs_idx == usize::MAX {
+            self.main_fs.root_dir().rename(src_rest, dst_rest)
+        } else {
+            self.mounts[src_fs_idx].fs.root_dir().rename(src_rest, dst_rest)
+        }
     }
 }
 
