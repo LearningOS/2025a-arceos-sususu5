@@ -230,7 +230,7 @@ fn init_allocator() {
     }
 }
 
-#[cfg(feature = "alt_alloc")]
+#[cfg(all(feature = "alt_alloc", not(feature = "alloc")))]
 fn init_allocator() {
     use axhal::mem::{memory_regions, phys_to_virt, MemRegionFlags};
 

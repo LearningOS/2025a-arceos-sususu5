@@ -173,12 +173,12 @@ pub fn __print_impl(args: core::fmt::Arguments) {
         if cfg!(feature = "smp") {
             arceos_api::stdio::ax_console_write_fmt(fmt_args).unwrap();
         } else {
-            use core::fmt::Write;
+            use core::fmt::Write as _;
             stdout().lock().write_fmt(fmt_args).unwrap();
         }
     };
 
-    #[cfg(feature = "alloc")]
+    #[cfg(any(feature = "alloc", feature = "alt_alloc"))]
     {
         use alloc::string::ToString;
         let text = args.to_string();
@@ -188,7 +188,7 @@ pub fn __print_impl(args: core::fmt::Arguments) {
             write_fmt(format_args!("{}{}{}", color, text, RESET));
         }
     }
-    #[cfg(not(feature = "alloc"))]
+    #[cfg(not(any(feature = "alloc", feature = "alt_alloc")))]
     {
         write_fmt(format_args!("{}{}{}", color, args, RESET));
     }

@@ -50,7 +50,7 @@
 #![feature(doc_cfg)]
 #![feature(doc_auto_cfg)]
 
-#[cfg(feature = "alloc")]
+#[cfg(any(feature = "alloc", feature = "alt_alloc"))]
 extern crate alloc;
 
 #[cfg(feature = "alloc")]
